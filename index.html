@@ -1,0 +1,268 @@
+<html>
+<head
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="initial-scale = 1.0">
+
+  <style>
+  .keypad-button {
+    width: 60px;
+    height: 60px;
+    background: red;
+    text-align: center;
+    font-weight: bold;
+    font-size: 24pt;
+    border: 1px black solid;
+  }
+  #entry {
+    padding-right:10px;
+    background: yellow;
+    height: 60px;
+    text-align: right;
+    font-weight: bold;
+    font-size: 24pt;
+    border: 1px black solid;
+  }
+
+  #score {
+    padding-right:10px;
+    background: black;
+    color: white;
+    height: 60px;
+    text-align: right;
+    font-weight: bold;
+    font-size: 24pt;
+    border: 1px black solid;
+  }
+
+  #game {
+    background: black;
+    position: relative;
+    width: 500px;
+    height: 800px;
+    overflow: hidden;
+    background-image: url("house.gif");
+    background-position: bottom center;
+    background-repeat: repeat-x;
+  }
+  #ship {
+    background-image: url(space-ship.gif);
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    width: 60px;
+    height: 30px;
+    z-index: 2;
+  }
+  .bomb {
+    color: yellow;
+    width: 50px;
+    height: 50px;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    background: url(bomb.gif);
+  }
+  #restart {
+    z-index:3;
+    width:180px;
+    height:50px;
+    background: lime;
+    border: 1px solid black;
+    position: absolute;
+    top: 30px;
+    left: 520px;
+    font-weight: bold;
+    font-size: 24pt;
+    text-align: center;
+    display: none;
+  }
+  </style>
+
+</head>
+
+<body>
+
+<div id="restart">RESTART</div>
+
+<!-- yey, let's just use tables! -->
+<table><tr>
+
+<td><div id="game"><div id="ship"></div></div></td>
+
+<td id="keypad">
+ <table id="keypad-table">
+  <tr>
+   <td colspan=3 id="entry"></td>
+  </tr>
+
+  <tr>
+   <td class="keypad-button">1</td>
+   <td class="keypad-button">2</td>
+   <td class="keypad-button">3</td>
+  </tr>
+
+  <tr>
+   <td class="keypad-button">4</td>
+   <td class="keypad-button">5</td>
+   <td class="keypad-button">6</td>
+  </tr>
+
+  <tr>
+   <td class="keypad-button">7</td>
+   <td class="keypad-button">8</td>
+   <td class="keypad-button">9</td>
+  </tr>
+
+  <tr>
+   <td class="keypad-button">&#8999;</td>
+   <td class="keypad-button">0</td>
+   <td class="keypad-button">&#9003;</td>
+  </tr>
+
+  <tr>
+   <td colspan=3 id="score">0</td>
+  </tr>
+
+ </table>
+</td>
+
+</tr></table>
+
+<script src="jquery-2.2.0.min.js"></script>
+<script>
+$(function () {
+    var score = 0;
+    var gameover = false;
+    var wait = 5000;
+
+    var explode = new Audio('explode.mp3');
+    var bigboom = new Audio('bigboom.mp3');
+    var whoosh  = new Audio('whoosh.mp3');
+    var error   = new Audio('error.mp3');
+
+    $('.keypad-button').on({ "touchstart": function (event) {
+        event.stopPropagation(); event.preventDefault();
+        var text = $(event.target).text();
+        if (text == '\u2327') {
+            $("#entry").text("");
+            return;
+        } 
+        var current_text = $("#entry").text();
+        if (text == '\u232B') {
+            if (current_text.length > 0)
+               $("#entry").text( current_text.substring( 0, current_text.length - 1) );
+            return;
+        }
+        if (current_text.length > 6)
+            return;
+        $("#entry").text( current_text + text );
+    }});
+
+    function animateShip(what, callback) {
+        $("#ship").animate(
+            { "left": what },
+            {
+                "duration": 3000,
+                "queue":true,
+                "done": callback
+            }
+        );
+    }
+    function moveShip() {
+        animateShip("+=440", function() {
+            animateShip("-=440", moveShip);
+        });
+    }
+    moveShip();
+
+    function spawnBomb() {
+        whoosh.play();
+        var wasdone = false;
+
+        var a = Math.floor( Math.random() * 3 ) + 3;
+        var b = Math.floor( Math.random() * 10 );
+
+        var sum = "" + a +"x" + b;
+
+        var foo = $("<div class='bomb'>"+sum+"</div>");
+        $("#game").append(foo);
+        foo.css({
+            "left":$("#ship").css("left")
+        })
+        foo.animate({
+            "top": "+=600"
+        }, {
+            "duration": 12000,
+            "easing": "linear",
+            "done": function () {
+                if (wasdone)
+                    return;
+                if (gameover)
+                    return;
+                $(".bomb").hide();
+                foo.show();
+                gameover = true;
+                $("#restart").show();
+                bigboom.play();
+                foo.css({
+                    "width":"75",
+                    "height":"75",
+                    "background-image": "url(boom.gif)"
+                });
+                foo.text(sum + " = " + (a*b));
+            }
+        });
+        foo.on({ "touchstart": function (event) {
+            event.stopPropagation(); event.preventDefault();
+            if (wasdone)
+                return;
+            if (gameover)
+                return;
+            if (a*b != parseInt( $("#entry").text() )) {
+                error.play();
+                $("#entry").text("");
+                return;
+            }
+            explode.play();
+            score += 100 + a*b;
+            $("#score").text(score);
+            $("#entry").text("");
+
+            foo.text("");
+            foo.css({
+                "width":"75",
+                "top":"-=40",
+                "height":"75",
+                "background-image": "url(boom.gif)"
+            });
+            foo.stop();
+            foo.animate({
+                "opacity": "0",
+            },{
+                "complete": function () { foo.hide() },
+                "duration": "4000",
+            })
+        }})
+    }
+
+    function bombLoop() {
+        setTimeout( function () {
+            if (gameover)
+                return;
+            spawnBomb();
+            wait -= 100;
+            bombLoop();
+        },Math.random()*2000 + wait);
+    }
+    bombLoop();
+
+    document.ontouchmove = function(event){
+        event.preventDefault();
+    }
+
+    $("#restart").click(function () { location.reload() });
+
+});
+</script>
+
+</html>
